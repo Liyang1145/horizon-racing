@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>HORIZON 地平线赛车</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0e13; }
+  body { font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; color: #fff; user-select: none; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block;
+    filter: saturate(1.18) contrast(1.08) brightness(1.02); }
+  .hidden { display: none !important; }
+
+  /* ---------- 加载 ---------- */
+  #loading { position: fixed; inset: 0; z-index: 60; background: linear-gradient(180deg,#0d1b2a,#12263a 60%,#1b3a4d);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #loading h1 { font-size: 34px; letter-spacing: 6px; font-weight: 800; color: #ffb04d; text-shadow: 0 0 24px rgba(255,140,40,.6); }
+  #loading p { margin-top: 10px; color: #9fc4d8; letter-spacing: 3px; font-size: 14px; }
+  #loadBar { width: 320px; height: 6px; margin-top: 26px; background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; }
+  #loadFill { height: 100%; width: 0%; background: linear-gradient(90deg,#ff8a2a,#ffd54a); transition: width .25s; }
+  #loadTxt { margin-top: 10px; font-size: 12px; color: #7fa3b8; }
+
+  /* ---------- 菜单 ---------- */
+  #menu { position: fixed; inset: 0; z-index: 50; }
+  #menuCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #menuVignette { position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(4,7,12,.86) 0%, rgba(4,7,12,.55) 34%, rgba(4,7,12,.12) 62%, rgba(4,7,12,0) 78%),
+      radial-gradient(ellipse at 30% 50%, transparent 25%, rgba(3,5,9,.72) 100%); }
+  #menuPanel { position: absolute; left: 5vw; top: 50%; transform: translateY(-50%); width: min(480px, 88vw);
+    background: linear-gradient(160deg, rgba(13,19,28,.88), rgba(8,12,19,.82));
+    border: 1px solid rgba(255,255,255,.14); border-radius: 20px; padding: 26px 30px;
+    backdrop-filter: blur(14px); box-shadow: 0 26px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08); }
+  #menuTitle { font-size: 46px; font-weight: 900; letter-spacing: 5px; line-height: 1.0;
+    background: linear-gradient(100deg,#ffe9a8,#ffb347 40%,#ff5e62 80%,#c86bff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 18px rgba(255,140,60,.35)); }
+  #menuSub { margin-top: 8px; color: #b8d2e2; font-size: 13px; letter-spacing: 3px; text-shadow: 0 1px 8px rgba(0,0,0,.7); }
+  .btnRow { display: flex; gap: 12px; margin-top: 22px; }
+  .btn { flex: 1; padding: 13px 10px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer;
+    color: #fff; background: linear-gradient(135deg,#ff9d33,#ff4d5e); transition: transform .12s, box-shadow .12s, filter .12s; letter-spacing: 2px;
+    box-shadow: 0 6px 20px rgba(255,90,50,.28); }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(255,110,50,.45); filter: brightness(1.08); }
+  .btn.ghost { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22); }
+  .btn.ghost:hover { background: rgba(255,255,255,.18); }
+  #carCard { margin-top: 20px; background: rgba(255,255,255,.07); border-radius: 14px; padding: 14px 16px; border: 1px solid rgba(255,255,255,.12); }
+  #carTop { display: flex; align-items: center; justify-content: space-between; }
+  #carName { font-size: 21px; font-weight: 800; }
+  #carEngine { font-size: 12px; color: #9fb8c8; margin-top: 3px; }
+  .carArrow { background: rgba(255,255,255,.1); border: none; color: #fff; font-size: 18px; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; }
+  .carArrow:hover { background: rgba(255,255,255,.22); }
+  .statRow { display: flex; gap: 10px; margin-top: 12px; }
+  .stat { flex: 1; }
+  .statLabel { font-size: 11px; color: #8fa8b8; text-align: center; }
+  .statBar { height: 5px; background: rgba(255,255,255,.12); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  .statFill { height: 100%; background: linear-gradient(90deg,#ffd25e,#ff7a2a); border-radius: 3px; }
+  #carDesc { margin-top: 10px; font-size: 12px; color: #b8ccd8; line-height: 1.5; }
+  .setRow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; }
+  .setLabel { font-size: 12px; color: #8fa8b8; width: 52px; }
+  .chip { padding: 6px 12px; border-radius: 20px; font-size: 13px; cursor: pointer; background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12); color: #cfe0ea; transition: all .12s; }
+  .chip:hover { background: rgba(255,255,255,.18); }
+  .chip.on { background: linear-gradient(135deg,#ff8a2a,#ff4d5e); color: #fff; border-color: transparent; }
+  #volRow { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  #volRow span { font-size: 12px; color: #8fa8b8; }
+  #vol { flex: 1; accent-color: #ff8a2a; }
+  #tuneBox { margin-top: 14px; background: rgba(255,255,255,.05); border-radius: 12px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.09); }
+  .tuneTitle { font-size: 12px; color: #ffd25e; letter-spacing: 2px; margin-bottom: 8px; }
+  .tuneRow { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: #b8ccd8; }
+  .tuneRow span { width: 64px; }
+  .tuneRow input { flex: 1; accent-color: #ff8a2a; }
+  .tuneRow b { width: 34px; text-align: right; color: #ffd25e; font-size: 12px; font-weight: 700; }
+  #camTuneBox { position: fixed; right: 18px; top: 18px; z-index: 80; width: 268px;
+    background: rgba(8,12,18,.93); border: 1px solid rgba(255,138,42,.45); border-radius: 12px;
+    padding: 12px 14px; display: none; color: #b8ccd8; font-size: 12px; pointer-events: auto; }
+  #camTuneBox.open { display: block; }
+  #camTuneBox .tuneRow span { width: 92px; }
+  #p918TuneBox { position: fixed; right: 18px; top: 18px; z-index: 81; width: 300px;
+    background: rgba(8,12,18,.94); border: 1px solid rgba(255,210,90,.55); border-radius: 12px;
+    padding: 12px 14px; display: none; color: #d8cfa8; font-size: 12px; pointer-events: auto;
+    max-height: calc(100vh - 36px); overflow-y: auto; }
+  #p918TuneBox.open { display: block; }
+  #p918TuneBox .tuneRow span { width: 96px; }
+  #p918TuneBox .tuneTitle { color: #ffd25e; letter-spacing: 2px; font-size: 12px; margin-bottom: 8px; }
+  #menuControls { margin-top: 14px; font-size: 11.5px; color: #7f98a8; line-height: 1.8; }
+  .kbd { background: rgba(255,255,255,.12); border-radius: 4px; padding: 1px 6px; font-size: 11px; margin-right: 4px; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+  #minimap { position: absolute; left: 18px; bottom: 18px; width: 216px; height: 216px; border-radius: 16px;
+    background: rgba(10,16,24,.55); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  #gauge { position: absolute; right: 22px; bottom: 14px; width: 210px; height: 210px; filter: drop-shadow(0 4px 16px rgba(0,0,0,.5)); }
+  #gear { position: absolute; right: 236px; bottom: 42px; font-size: 44px; font-weight: 900; color: #ffd25e;
+    text-shadow: 0 2px 10px rgba(0,0,0,.7); letter-spacing: 1px; }
+  #speedNum { position: absolute; right: 68px; bottom: 100px; font-size: 34px; font-weight: 800; color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+  #speedUnit { position: absolute; right: 48px; bottom: 132px; font-size: 12px; color: #9fb8c8; }
+  #rpmWrap { position: absolute; right: 26px; bottom: 168px; width: 190px; height: 8px; border-radius: 4px;
+    background: rgba(255,255,255,.12); overflow: hidden; }
+  #rpmWrap { right: 240px; bottom: 86px; width: 176px; }
+  #rpmFill { height: 100%; width: 0%; background: linear-gradient(90deg,#3ec96b,#ffd25e 55%,#ff5a3c); }
+  #rpmRed { position: absolute; right: 12%; top: -2px; bottom: -2px; width: 2px; background: rgba(255,70,60,.8); }
+  #scoreBox { position: absolute; right: 26px; top: 20px; text-align: right; }
+  #score { font-size: 30px; font-weight: 900; color: #ffd25e; text-shadow: 0 2px 10px rgba(0,0,0,.8); }
+  #scoreLabel { font-size: 11px; color: #9fb8c8; letter-spacing: 2px; }
+  #topInfo { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); display: flex; gap: 10px; }
+  .chipInfo { padding: 5px 12px; border-radius: 14px; font-size: 12px; background: rgba(10,16,24,.55);
+    border: 1px solid rgba(255,255,255,.14); color: #d8e6ee; }
+  #popups { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); width: 420px; text-align: center; }
+  .pop { font-size: 22px; font-weight: 800; color: #ffd25e; text-shadow: 0 2px 12px rgba(0,0,0,.9); margin-top: 6px;
+    animation: popUp 1.6s ease-out forwards; }
+  .pop.blue { color: #6ecbff; } .pop.green { color: #6fe08a; } .pop.red { color: #ff6a6a; }
+  @keyframes popUp { 0% { opacity: 0; transform: translateY(14px) scale(.85); } 14% { opacity: 1; transform: translateY(0) scale(1.05); }
+    70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-28px); } }
+  #msg { position: absolute; left: 50%; top: 38%; transform: translateX(-50%); text-align: center; }
+  #msgBig { font-size: 64px; font-weight: 900; color: #ffd25e; text-shadow: 0 4px 20px rgba(0,0,0,.85); letter-spacing: 6px; }
+  #msgSub { margin-top: 8px; font-size: 18px; color: #e8f4fa; text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+  #toast { position: absolute; left: 50%; bottom: 24%; transform: translateX(-50%); background: rgba(10,16,24,.75);
+    padding: 10px 22px; border-radius: 30px; font-size: 15px; border: 1px solid rgba(255,255,255,.16); opacity: 0; transition: opacity .4s; }
+  #hint { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,.55); letter-spacing: 1px; }
+  #help { position: absolute; right: 22px; top: 70px; background: rgba(9,13,19,.82); border: 1px solid rgba(255,255,255,.14);
+    border-radius: 14px; padding: 16px 18px; font-size: 13px; line-height: 2.1; color: #c8dae4; pointer-events: auto; }
+  #help .kbd { background: rgba(255,255,255,.14); }
+  #racePanel { position: absolute; left: 50%; top: 72px; transform: translateX(-50%); text-align: center;
+    background: rgba(9,13,19,.72); border-radius: 14px; padding: 10px 26px; border: 1px solid rgba(255,255,255,.14); }
+  #raceTime { font-size: 30px; font-weight: 800; color: #fff; }
+  #raceDelta { font-size: 14px; color: #7fe08a; margin-top: 2px; }
+  #raceCheck { font-size: 12px; color: #9fb8c8; margin-top: 3px; }
+  #racePar { font-size: 11px; color: #7f98a8; }
+  #racePos { font-size: 19px; font-weight: 800; color: #ffd25e; margin-top: 3px; letter-spacing: 2px;
+    text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+
+  /* ---------- 大地图 ---------- */
+  #bigmap { position: fixed; inset: 0; z-index: 36; background: rgba(6,10,16,.82);
+    display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  #bigmapCanvas { width: min(94vh, 94vw); height: min(94vh, 94vw); border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.18); box-shadow: 0 24px 80px rgba(0,0,0,.6);
+    background: #111a22; }
+  #bigmapTitle { position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+    font-size: 15px; letter-spacing: 3px; color: #ffd25e; text-shadow: 0 2px 10px rgba(0,0,0,.8);
+    background: rgba(9,13,19,.7); padding: 6px 18px; border-radius: 20px; border: 1px solid rgba(255,255,255,.12); }
+
+  /* ---------- 暂停 ---------- */
+  #pause { position: fixed; inset: 0; z-index: 40; background: rgba(6,9,14,.72); backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center; }
+  #pauseBox { width: min(430px, 90vw); background: rgba(10,15,22,.9); border: 1px solid rgba(255,255,255,.14);
+    border-radius: 18px; padding: 30px 32px; text-align: center; }
+  #pauseBox h2 { font-size: 30px; font-weight: 900; letter-spacing: 6px; color: #ffd25e; margin-bottom: 20px; }
+  #pauseBox .btn { width: 100%; margin-top: 10px; }
+  #pauseBox .btn.ghost { flex: none; }
+
+  /* ---------- 高速屏幕特效（速度线 + 边缘压暗） ---------- */
+  #speedFx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
+
+  @media (max-width: 760px) {
+    #menuPanel { left: 50%; transform: translate(-50%,-50%); width: 94vw; padding: 18px; }
+    #gauge { right: 8px; width: 150px; height: 150px; }
+    #gear { right: 158px; font-size: 30px; bottom: 26px; }
+    #speedNum { right: 40px; bottom: 70px; font-size: 24px; }
+    #minimap { left: 8px; bottom: 8px; width: 150px; height: 150px; }
+    #rpmWrap { right: 168px; bottom: 58px; width: 132px; }
+  }
+
+  /* ---------- Festival single-mode presentation ---------- */
+  #menuCanvas { display: none; }
+  #menuVignette {
+    background:
+      linear-gradient(90deg, rgba(7,10,15,.94) 0%, rgba(7,10,15,.74) 31%, rgba(7,10,15,.16) 59%, rgba(7,10,15,0) 76%),
+      linear-gradient(0deg, rgba(6,8,12,.72), transparent 42%);
+  }
+  #menuPanel {
+    left: 6.5vw; top: auto; bottom: 6.5vh; transform: none; width: min(520px, 88vw);
+    padding: 0; border: 0; border-radius: 0; background: transparent; backdrop-filter: none;
+    box-shadow: none;
+  }
+  #menuEyebrow { color: #ff3b8d; font-size: 13px; font-weight: 900; letter-spacing: 4px; margin-bottom: 7px; }
+  #menuTitle {
+    font-size: clamp(58px, 7.2vw, 96px); font-style: italic; letter-spacing: -3px; line-height: .84;
+    color: #fff; background: none; -webkit-text-fill-color: #fff; filter: drop-shadow(0 8px 26px rgba(0,0,0,.55));
+  }
+  #menuSub { margin-top: 14px; color: rgba(255,255,255,.92); font-size: 15px; font-weight: 700; letter-spacing: 5px; }
+  #festivalStripe { display: flex; width: 230px; height: 8px; margin-top: 15px; transform: skewX(-24deg); overflow: hidden; }
+  #festivalStripe i { flex: 1; }
+  #festivalStripe i:nth-child(1) { background:#00d6d6; }
+  #festivalStripe i:nth-child(2) { background:#8bd229; }
+  #festivalStripe i:nth-child(3) { background:#ffca22; }
+  #festivalStripe i:nth-child(4) { background:#ff2f87; }
+  .btnRow { display: block; margin-top: 25px; }
+  #btnFree {
+    width: 100%; min-height: 76px; padding: 14px 20px 13px 28px; border-radius: 2px; text-align: left;
+    color: #101318; background: rgba(255,255,255,.96); border-left: 8px solid #ff2f87;
+    box-shadow: 0 18px 45px rgba(0,0,0,.34); letter-spacing: 0;
+  }
+  #btnFree b { display: block; font-size: 24px; font-style: italic; letter-spacing: 1px; }
+  #btnFree span { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: #59606a; letter-spacing: 1px; }
+  #btnFree:hover { transform: translateX(8px); box-shadow: 0 22px 55px rgba(0,0,0,.42); filter: none; }
+  #carCard {
+    margin-top: 12px; padding: 13px 16px; border-radius: 2px;
+    background: rgba(12,17,24,.72); border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(10px);
+  }
+  #carTop { align-items: flex-start; }
+  #carName { font-size: 20px; letter-spacing: 1px; }
+  #carLocked { padding: 5px 10px; background: #ff2f87; color: #fff; font-size: 13px; font-weight: 900; transform: skewX(-8deg); }
+  #carDesc { display: none; }
+  #volRow { margin-top: 11px; padding: 8px 12px; background: rgba(10,15,22,.66); }
+  #btnTune {
+    margin-top: 8px; padding: 7px 11px; border: 1px solid rgba(255,255,255,.20); border-radius: 2px;
+    background: rgba(10,15,22,.58); color: rgba(255,255,255,.72); font-size: 11px; cursor: pointer;
+  }
+  #btnTune:hover { color:#fff; border-color:#ff2f87; }
+  #tuneBox { display: none; margin-top: 7px; max-height: 210px; overflow: auto; background: rgba(8,12,18,.90); border-radius: 2px; }
+  #tuneBox.open { display: block; }
+  #menuControls { margin-top: 10px; color: rgba(255,255,255,.58); }
+
+  #bigmap {
+    background:
+      radial-gradient(circle at 50% 46%, rgba(20,62,66,.30), rgba(4,10,15,.88) 72%),
+      rgba(4,9,14,.82);
+    backdrop-filter: blur(3px) saturate(.72); pointer-events: none;
+  }
+  #bigmapCanvas {
+    width: min(86vh, 84vw); height: min(86vh, 84vw); border-radius: 3px;
+    border: 2px solid rgba(235,248,246,.34); box-shadow: 0 28px 100px rgba(0,0,0,.72);
+    transform: rotate(-.2deg);
+  }
+  #bigmapTitle {
+    top: 22px; padding: 0; border: 0; border-radius: 0; background: transparent;
+    color: #fff; font-size: 24px; font-style: italic; font-weight: 900; letter-spacing: 3px;
+  }
+  #bigmapTitle::after { content:"  /  WORLD MAP"; color:#ff2f87; font-size:12px; letter-spacing:2px; }
+  #bigmapInfo {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    padding: 7px 18px; color: rgba(255,255,255,.9); background: rgba(4,12,17,.72);
+    border-left: 4px solid #ff2f87; font-size: 13px; letter-spacing: 1px;
+  }
+
+  @media (max-width: 760px) {
+    #menuPanel { left: 5vw; bottom: 4vh; top: auto; transform: none; width: 90vw; padding: 0; }
+    #menuTitle { font-size: 58px; }
+    #menuControls { display:none; }
+    #bigmapCanvas { width: 94vw; height: 94vw; }
+  }
+
+  #wheelDbg {
+    display: none; position: fixed; left: 12px; top: 12px; z-index: 999;
+    padding: 8px 12px; background: rgba(4,10,16,.82); color: #7df9a8;
+    font: 12px/1.6 Consolas, monospace; white-space: pre; pointer-events: none;
+    border-left: 3px solid #7df9a8;
+  }
+  #wheelDbg.on { display: block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="wheelDbg"></div>
+
+<div id="loading">
+  <h1>HORIZON</h1>
+  <p>地平线 · 开放式世界赛车</p>
+  <div id="loadBar"><div id="loadFill"></div></div>
+  <div id="loadTxt">正在生成世界…</div>
+</div>
+
+<div id="menu" class="hidden">
+  <canvas id="menuCanvas"></canvas>
+  <div id="menuVignette"></div>
+  <div id="menuPanel">
+    <div id="menuEyebrow">HORIZON FESTIVAL · ALPINE</div>
+    <div id="menuTitle">HORIZON</div>
+    <div id="menuSub">阿尔卑斯湖谷 · 自由漫游</div>
+    <div class="setRow" id="mapChips" style="margin-top:12px;"></div>
+    <div id="festivalStripe"><i></i><i></i><i></i><i></i></div>
+    <div class="btnRow">
+      <button class="btn" id="btnFree"><b>进入世界</b><span>驾驶烈焰 GT 自由探索</span></button>
+    </div>
+    <div id="carCard">
+      <div id="carTop">
+        <div><div id="carName"></div><div id="carEngine"></div></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="carArrow" id="carPrev" title="上一辆车">◀</button>
+          <div id="carLocked">S2 998</div>
+          <button class="carArrow" id="carNext" title="下一辆车">▶</button>
+        </div>
+      </div>
+      <div class="statRow">
+        <div class="stat"><div class="statLabel">极速</div><div class="statBar"><div class="statFill" id="stTop"></div></div></div>
+        <div class="stat"><div class="statLabel">加速</div><div class="statBar"><div class="statFill" id="stAcc"></div></div></div>
+        <div class="stat"><div class="statLabel">操控</div><div class="statBar"><div class="statFill" id="stHand"></div></div></div>
+        <div class="stat"><div class="statLabel">漂移</div><div class="statBar"><div class="statFill" id="stDrift"></div></div></div>
+      </div>
+      <div id="carDesc"></div>
+    </div>
+    <div id="volRow"><span>音量</span><input id="vol" type="range" min="0" max="100" value="90"></div>
+    <button id="btnTune">驾驶辅助调节</button>
+    <div id="tuneBox">
+      <div class="tuneTitle">漂移调参</div>
+      <div class="tuneRow"><span>漂移强度</span><input id="tDrift" type="range" min="50" max="170" value="100"><b id="tDriftV">1.0</b></div>
+      <div class="tuneRow"><span>反打增益</span><input id="tCounter" type="range" min="50" max="200" value="100"><b id="tCounterV">1.0</b></div>
+      <div class="tuneRow"><span>小角反打减弱</span><input id="tSmall" type="range" min="0" max="100" value="0"><b id="tSmallV">0%</b></div>
+      <div class="tuneRow"><span>后轮抓地</span><input id="tRearGrip" type="range" min="40" max="160" value="100"><b id="tRearGripV">1.0</b></div>
+      <div class="tuneRow"><span>手刹力度</span><input id="tHandbrake" type="range" min="40" max="160" value="100"><b id="tHandbrakeV">1.0</b></div>
+    </div>
+    <div id="menuControls">
+      <span class="kbd">W/S</span>油门/刹车（停住按S倒车）· <span class="kbd">A/D</span>转向 · <span class="kbd">空格</span>手刹漂移 ·
+      <span class="kbd">C</span>视角 · <span class="kbd">T/Y/U</span>时间/季节/天气 · <span class="kbd">H</span>喇叭 ·
+      <span class="kbd">R</span>复位 · <span class="kbd">M</span>大地图 · <span class="kbd">Esc</span>暂停
+    </div>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <canvas id="speedFx"></canvas>
+  <canvas id="minimap"></canvas>
+  <canvas id="gauge"></canvas>
+  <div id="gear">1</div>
+  <div id="speedNum">0</div><div id="speedUnit">km/h</div>
+  <div id="rpmWrap"><div id="rpmFill"></div><div id="rpmRed"></div></div>
+  <div id="scoreBox"><div id="score">0</div><div id="scoreLabel">技能点数</div></div>
+  <div id="topInfo"></div>
+  <div id="popups"></div>
+  <div id="msg"><div id="msgBig"></div><div id="msgSub"></div></div>
+  <div id="toast"></div>
+  <div id="hint">T 时间 · Y 季节 · U 天气 · C 视角 · F1 帮助</div>
+  <div id="camTuneBox">
+    <div class="tuneTitle">追逐视角调参 · P 开关</div>
+    <div style="margin:4px 0 8px;"><button id="btnJumpTest" style="width:100%;padding:7px 0;border-radius:8px;border:1px solid #ff8a2a;background:rgba(255,138,42,.15);color:#ffd25e;cursor:pointer;font-size:13px;">🚀 AI 飞跃测试（传送到起飞点）</button></div>
+    <div style="margin:0 0 8px;"><button id="btnP918Tune" style="width:100%;padding:7px 0;border-radius:8px;border:1px solid #ffd25e;background:rgba(255,210,90,.12);color:#ffd25e;cursor:pointer;font-size:13px;">保时捷 918 调参面板（O 键）</button></div>
+    <div style="margin:0 0 8px;"><button id="btnTrail" style="width:100%;padding:7px 0;border-radius:8px;border:1px solid #ff8a2a;background:rgba(255,138,42,.15);color:#ffd25e;cursor:pointer;font-size:13px;">尾灯拖尾：开</button></div>
+    <div style="margin:0 0 8px;"><button id="btnTrailBox" style="width:100%;padding:7px 0;border-radius:8px;border:1px solid #ff8a2a;background:rgba(255,138,42,.15);color:#ffd25e;cursor:pointer;font-size:13px;">长方体光管：开</button></div>
+    <div class="tuneTitle" style="margin-top:10px;">音量</div>
+    <div class="tuneRow"><span>引擎声浪</span><input id="auEngine" type="range" min="0" max="120" value="90"><b id="auEngineV">0.90</b></div>
+    <div class="tuneRow"><span>环境音</span><input id="auAmbient" type="range" min="0" max="140" value="100"><b id="auAmbientV">1.00</b></div>
+    <div class="tuneRow"><span>音效</span><input id="auSfx" type="range" min="0" max="120" value="90"><b id="auSfxV">0.90</b></div>
+    <div class="tuneRow"><span>基础距离</span><input id="ctDist" type="range" min="50" max="85" value="62"><b id="ctDistV">6.2m</b></div>
+    <div class="tuneRow"><span>速度后移</span><input id="ctPull" type="range" min="0" max="30" value="12"><b id="ctPullV">1.2m</b></div>
+    <div class="tuneRow"><span>加速拉伸系数</span><input id="ctAccK" type="range" min="0" max="16" value="9"><b id="ctAccKV">0.09</b></div>
+    <div class="tuneRow"><span>加速拉伸上限</span><input id="ctAccMax" type="range" min="5" max="30" value="20"><b id="ctAccMaxV">2.0m</b></div>
+    <div class="tuneRow"><span>减速怼近系数</span><input id="ctBrkK" type="range" min="0" max="16" value="10"><b id="ctBrkV">0.10</b></div>
+    <div class="tuneRow"><span>减速怼近上限</span><input id="ctBrkMax" type="range" min="3" max="25" value="15"><b id="ctBrkMaxV">1.5m</b></div>
+    <div class="tuneRow"><span>响应速度</span><input id="ctRate" type="range" min="10" max="80" value="40"><b id="ctRateV">4.0</b></div>
+    <div class="tuneRow"><span>高度随动</span><input id="ctHgtK" type="range" min="0" max="50" value="22"><b id="ctHgtKV">0.022</b></div>
+    <div class="tuneRow"><span>镜头高度</span><input id="ctHeight" type="range" min="10" max="30" value="23"><b id="ctHeightV">2.30m</b></div>
+  </div>
+  <div id="p918TuneBox">
+    <div class="tuneTitle">保时捷 918 调参 · O 开关</div>
+    <div style="color:#8fa8b8;line-height:1.5;margin-bottom:8px;">仅对 918 生效；GT 的漂移调参不受影响。参数实时保存。</div>
+    <div class="tuneRow"><span>悬挂刚度</span><input id="p918Susp" type="range" min="50" max="200" value="100"><b id="p918SuspV">100%</b></div>
+    <div class="tuneRow"><span>压缩阻尼</span><input id="p918DampC" type="range" min="50" max="200" value="100"><b id="p918DampCV">100%</b></div>
+    <div class="tuneRow"><span>回弹阻尼</span><input id="p918DampR" type="range" min="50" max="200" value="100"><b id="p918DampRV">100%</b></div>
+    <div class="tuneRow"><span>轮胎抓地</span><input id="p918Grip" type="range" min="60" max="180" value="100"><b id="p918GripV">100%</b></div>
+    <div class="tuneRow"><span>转向响应</span><input id="p918Steer" type="range" min="50" max="200" value="100"><b id="p918SteerV">100%</b></div>
+    <div class="tuneRow"><span>最大转角</span><input id="p918SteerMax" type="range" min="50" max="180" value="100"><b id="p918SteerMaxV">100%</b></div>
+    <div class="tuneRow"><span>前刹车</span><input id="p918BrakeF" type="range" min="60" max="200" value="100"><b id="p918BrakeFV">100%</b></div>
+    <div class="tuneRow"><span>后刹车</span><input id="p918BrakeR" type="range" min="60" max="200" value="100"><b id="p918BrakeRV">100%</b></div>
+    <div class="tuneRow"><span>下压力</span><input id="p918Aero" type="range" min="50" max="250" value="100"><b id="p918AeroV">100%</b></div>
+    <div class="tuneRow"><span>动力输出</span><input id="p918Power" type="range" min="60" max="180" value="100"><b id="p918PowerV">100%</b></div>
+    <div class="tuneRow"><span>侧倾抑制</span><input id="p918Roll" type="range" min="50" max="200" value="100"><b id="p918RollV">100%</b></div>
+    <div class="tuneRow"><span>换挡速度</span><input id="p918Shift" type="range" min="50" max="200" value="100"><b id="p918ShiftV">100%</b></div>
+    <div class="tuneRow"><span>左前轮毂偏移</span><input id="p918RimFL" type="range" min="-200" max="200" value="0"><b id="p918RimFLV">0cm</b></div>
+    <div class="tuneRow"><span>右前轮毂偏移</span><input id="p918RimFR" type="range" min="-200" max="200" value="0"><b id="p918RimFRV">0cm</b></div>
+    <div class="tuneRow"><span>左后轮毂偏移</span><input id="p918RimRL" type="range" min="-200" max="200" value="0"><b id="p918RimRLV">0cm</b></div>
+    <div class="tuneRow"><span>右后轮毂偏移</span><input id="p918RimRR" type="range" min="-200" max="200" value="0"><b id="p918RimRRV">0cm</b></div>
+    <div class="tuneRow"><span>左前轮胎偏移</span><input id="p918TireFL" type="range" min="-200" max="200" value="0"><b id="p918TireFLV">0cm</b></div>
+    <div class="tuneRow"><span>右前轮胎偏移</span><input id="p918TireFR" type="range" min="-200" max="200" value="0"><b id="p918TireFRV">0cm</b></div>
+    <div class="tuneRow"><span>左后轮胎偏移</span><input id="p918TireRL" type="range" min="-200" max="200" value="0"><b id="p918TireRLV">0cm</b></div>
+    <div class="tuneRow"><span>右后轮胎偏移</span><input id="p918TireRR" type="range" min="-200" max="200" value="0"><b id="p918TireRRV">0cm</b></div>
+  </div>
+  <div id="help" class="hidden">
+    <b>操作</b><br>
+    <span class="kbd">W</span>/<span class="kbd">↑</span> 油门 &nbsp; <span class="kbd">S</span>/<span class="kbd">↓</span> 刹车（停住即倒挡）<br>
+    <span class="kbd">A</span>/<span class="kbd">D</span> 转向 &nbsp; <span class="kbd">空格</span> 手刹（漂移）<br>
+    <span class="kbd">C</span> 切换视角 &nbsp; <span class="kbd">Q/E</span> 手动换挡<br>
+    <span class="kbd">H</span> 喇叭 &nbsp; <span class="kbd">R</span> 复位到道路<br>
+    <span class="kbd">T</span> 时间 &nbsp; <span class="kbd">Y</span> 季节 &nbsp; <span class="kbd">U</span> 天气<br>
+    <span class="kbd">M</span> 大地图 &nbsp; <span class="kbd">F1</span> 关闭帮助<br>
+    <span class="kbd">F</span> 全屏 &nbsp; <span class="kbd">Esc</span> 暂停
+  </div>
+  <div id="racePanel" class="hidden">
+    <div id="raceTime">0:00.0</div>
+    <div id="raceDelta">目标 3:00</div>
+    <div id="raceCheck">检查点 0/24</div>
+    <div id="racePar">最佳速度区间：—</div>
+    <div id="racePos">1/4</div>
+  </div>
+</div>
+
+<div id="bigmap" class="hidden">
+  <canvas id="bigmapCanvas"></canvas>
+  <div id="bigmapTitle">阿尔卑斯湖谷</div>
+  <div id="bigmapInfo">自由漫游 · M 关闭</div>
+</div>
+
+<div id="pause" class="hidden">
+  <div id="pauseBox">
+    <h2>已暂停</h2>
+    <button class="btn" id="btnResume">继续驾驶</button>
+    <button class="btn ghost" id="btnRestart">重置车辆</button>
+    <button class="btn ghost" id="btnToMenu">返回主菜单</button>
+  </div>
+</div>
+
+<script src="lib/three.min.js?v=20260813"></script>
+<script src="lib/cannon-es.js?v=20260813"></script>
+<script src="lib/GLTFLoader.js?v=20260813"></script>
+<script src="assets/textures/road_textures.js?v=20260813"></script>
+<script src="assets/models/porsche918_glb.js?v=20260813"></script>
+<script src="js/utils.js?v=20260813"></script>
+<script src="js/audio.js?v=20260813"></script>
+<script src="js/engine.js?v=20260813"></script>
+<script src="js/physics.js?v=20260813"></script>
+<script>window.__NO_LAKES = true;</script>
+<script src="js/world.js?v=20260813"></script>
+<script src="js/props.js?v=20260813"></script>
+<script src="js/city_core.js?v=20260815"></script>
+<script src="js/city_buildings.js?v=20260815"></script>
+<script src="js/city_roads.js?v=20260815"></script>
+<script src="js/city_roads_engine.js?v=20260815"></script>
+<script src="js/city_props.js?v=20260815"></script>
+<script src="js/city_trees.js?v=20260815"></script>
+<script src="js/city_sky.js?v=20260815"></script>
+<script src="js/city_post.js?v=20260815"></script>
+<script src="js/city_glb.js?v=20260815"></script>
+<script src="js/traffic.js?v=20260813"></script>
+<script src="js/ui.js?v=20260813"></script>
+<script src="js/ai.js?v=20260813"></script>
+<script src="js/main.js?v=20260813"></script>
+</body>
+</html>

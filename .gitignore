@@ -1,0 +1,26 @@
+# 截图与开发临时产物（不进入版本库）
+shots/
+dev/*.png
+dev/*.jpg
+dev/*.jpeg
+*.log
+
+# 系统文件
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Node
+node_modules/
+
+# 原始/中间 3D 资产：运行时使用 *_data.js / *_glb.js 内嵌 base64 版本
+assets/models/*.glb
+assets/textures/*.zip
+
+# 本地杂物
+.dsh-vision-router/
+dsh-vision-router/
+myDshPresets/
+v4-flash-godmode-opencode-go/
+blender_preview.*
+*.blend
